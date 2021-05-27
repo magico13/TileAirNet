@@ -3,13 +3,17 @@ using UnityEngine;
 
 public class WorldController : MonoBehaviour
 {
-    public int tiles_width = 105;
-    public int tiles_height = 53;
+    public static int DisplayMode { get; set; }
+
+    public static int tiles_width = 105;
+    public static int tiles_height = 53;
     public float diff = 250;
     public GameObject TileSource;
     public TMP_Text InfoText;
+    
 
     int mode = 0;
+    int tileid = 1;
     TileController[] tiles;
     float[] current;
     float cumulativeTime = 0;
@@ -35,11 +39,22 @@ public class WorldController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
             mode = 0;
-
         }
         else if (Input.GetKeyDown(KeyCode.Alpha2))
         {
             mode = 1;
+        }
+
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            DisplayMode = (DisplayMode + 1) % 2;
+        }
+
+        if (Input.GetKeyDown(KeyCode.W))
+        {
+            tileid = (tileid+1) % 3;
+            if (tileid == 0)
+                tileid = 1;
         }
 
         bool leftClick = Input.GetMouseButton(0);
@@ -49,9 +64,47 @@ public class WorldController : MonoBehaviour
             var localPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             int x = Mathf.RoundToInt(Mathf.Clamp(localPos.x, 0, tiles_width - 1));
             int y = Mathf.RoundToInt(Mathf.Clamp(localPos.y, 0, tiles_height - 1));
+            int index = indexOf(x, y);
             if (mode == 0) //add/remove walls
             {
-                tiles[indexOf(x, y)].SetSolid(leftClick);
+                if (tileid == 1)
+                { //walls
+                    tiles[index].SetSolid(leftClick);
+                }
+                else if (tileid == 2)
+                { //pumps
+                    if (Input.GetMouseButtonDown(0))
+                    {
+                        //DestroyImmediate(tiles[index].gameObject, true);
+                        
+                        PumpController pumpController;
+                        if (tiles[index].TryGetComponent(out pumpController))
+                        {
+                            pumpController.PumpActive = true;
+                        }
+                        else
+                        {
+                            GameObject pump = Instantiate(Resources.Load<GameObject>("pump"));
+                            pump.transform.position = new Vector2(x, y);
+                            
+                            pumpController = pump.GetComponent<PumpController>();
+                        }
+
+                        pumpController.gameObject.SetActive(true);
+                        tiles[index] = pumpController;
+                        tiles[index].SetSolid(true);
+                        tiles[index].Id = 2;
+                        tiles[index].GetComponent<SpriteRenderer>().color = Color.red;
+                    }
+                    else if (rightClick)
+                    {
+                        if (tiles[index].TryGetComponent(out PumpController controller))
+                        {
+                            controller.PumpActive = false;
+                        }
+                        //tiles[index].SetSolid(leftClick);
+                    }
+                }
             }
             else if (mode == 1) //add air
             {
@@ -60,11 +113,11 @@ public class WorldController : MonoBehaviour
                 {
                     val *= -1;
                 }
-                current[indexOf(x, y)] += val;
+                current[index] += val;
             }
-            if (current[indexOf(x, y)] < 0)
+            if (current[index] < 0)
             {
-                current[indexOf(x, y)] = 0;
+                current[index] = 0;
             }
         }
         
@@ -90,7 +143,7 @@ public class WorldController : MonoBehaviour
         float m = Mathf.Round(current[index] * 1000) / 1000;
         float p = Mathf.Round(tiles[index].GetPressure()*100)/100;
 
-        InfoText.SetText($"{modeTxt} Mode\nFPS: {Mathf.FloorToInt(fps)}\nP: {p} atm\nM: {m}");
+        InfoText.SetText($"{modeTxt} Mode\nFPS: {Mathf.FloorToInt(fps)}\nP: {p} atm\nM: {m}\n({x}, {y})\nTile: {tileid}");
     }
 
     // FixedUpdate is called once per physics tick
@@ -107,6 +160,13 @@ public class WorldController : MonoBehaviour
             }
         }
         diffuse(next, current, diff, Time.fixedDeltaTime);
+        for (int x = 0; x < tiles_width; x++)
+        {
+            for (int y = 0; y < tiles_height; y++)
+            {
+                tiles[indexOf(x, y)].PostDiffusion(next, x, y);                
+            }
+        }
         current = next;
         for (int x = 0; x < tiles_width; x++)
         {
@@ -135,7 +195,7 @@ public class WorldController : MonoBehaviour
         }
     }
 
-    int indexOf(int x, int y)
+    public static int indexOf(int x, int y)
     {
         return x + y * tiles_width;
     }
