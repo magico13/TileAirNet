@@ -8,7 +8,7 @@ public class TileController : MonoBehaviour
     public float Temperature { get; set; } = 20;
     public float MoleCount { get; set; } = 0;
     public bool IsSolid { get; private set; } = false;
-    
+
 
     public float TemperatureK => Temperature + 273.15f;
 
@@ -42,7 +42,7 @@ public class TileController : MonoBehaviour
 
     }
 
-    public void SetSolid(bool solid)
+    public virtual void SetSolid(bool solid)
     {
         IsSolid = solid;
         if (_renderer == null)
@@ -56,7 +56,7 @@ public class TileController : MonoBehaviour
             _renderer.enabled = true;
             gameObject.SetActive(true);
         }
-        else 
+        else
         {
             //gameObject.SetActive(false);
             if (WorldController.DisplayMode != 1) //enable this code if air shouldn't render

@@ -8,7 +8,7 @@ public class PumpController : TileController
     // Start is called before the first frame update
     void Start()
     {
-        
+
     }
 
     public override void PostDiffusion(float[] next, int x, int y)
@@ -22,6 +22,21 @@ public class PumpController : TileController
         }
     }
 
+
+    public override void SetSolid(bool solid)
+    {
+        base.SetSolid(solid);
+        PumpActive = solid;
+        if (solid)
+        {
+            Id = 2;
+            GetComponent<SpriteRenderer>().color = Color.red;
+        }
+        else
+        {
+            Id = 0;
+        }
+    }
     public float Pump(float sourceMoles)
     {
         return Rate * sourceMoles;

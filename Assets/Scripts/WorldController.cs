@@ -10,7 +10,7 @@ public class WorldController : MonoBehaviour
     public float diff = 250;
     public GameObject TileSource;
     public TMP_Text InfoText;
-    
+
 
     int mode = 0;
     int tileid = 1;
@@ -23,7 +23,7 @@ public class WorldController : MonoBehaviour
     {
         current = new float[tiles_width * tiles_height];
         tiles = new TileController[tiles_width * tiles_height];
-        for (int i=0; i<tiles_width*tiles_height; i++)
+        for (int i = 0; i < tiles_width * tiles_height; i++)
         {
             var obj = Instantiate(TileSource);
             Vector2 pos = indexToXY(i);
@@ -52,7 +52,7 @@ public class WorldController : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.W))
         {
-            tileid = (tileid+1) % 3;
+            tileid = (tileid + 1) % 3;
             if (tileid == 0)
                 tileid = 1;
         }
@@ -69,32 +69,48 @@ public class WorldController : MonoBehaviour
             {
                 if (tileid == 1)
                 { //walls
+                    float moles = current[index];
                     tiles[index].SetSolid(leftClick);
+                    //try to push the air into an adjacent block (ideally equally but for now just one direction is fine)
+                    if (moles > 0 && leftClick)
+                    {
+                        if (!tiles[indexOf(x - 1, y)].IsSolid)
+                        {
+                            current[indexOf(x - 1, y)] += moles;
+                        }
+                        else if (!tiles[indexOf(x + 1, y)].IsSolid)
+                        {
+                            current[indexOf(x + 1, y)] += moles;
+                        }
+                        else if (!tiles[indexOf(x, y - 1)].IsSolid)
+                        {
+                            current[indexOf(x, y - 1)] += moles;
+                        }
+                        else if (!tiles[indexOf(x, y + 1)].IsSolid)
+                        {
+                            current[indexOf(x, y + 1)] += moles;
+                        }
+                        current[index] = 0;
+                    }
                 }
                 else if (tileid == 2)
                 { //pumps
                     if (Input.GetMouseButtonDown(0))
                     {
                         //DestroyImmediate(tiles[index].gameObject, true);
-                        
+
                         PumpController pumpController;
-                        if (tiles[index].TryGetComponent(out pumpController))
-                        {
-                            pumpController.PumpActive = true;
-                        }
-                        else
+                        if (!tiles[index].TryGetComponent(out pumpController))
                         {
                             GameObject pump = Instantiate(Resources.Load<GameObject>("pump"));
                             pump.transform.position = new Vector2(x, y);
-                            
+
                             pumpController = pump.GetComponent<PumpController>();
                         }
 
                         pumpController.gameObject.SetActive(true);
                         tiles[index] = pumpController;
                         tiles[index].SetSolid(true);
-                        tiles[index].Id = 2;
-                        tiles[index].GetComponent<SpriteRenderer>().color = Color.red;
                     }
                     else if (rightClick)
                     {
@@ -102,7 +118,10 @@ public class WorldController : MonoBehaviour
                         {
                             controller.PumpActive = false;
                         }
-                        //tiles[index].SetSolid(leftClick);
+                        //else
+                        //{
+                        //    tiles[index].SetSolid(false); //would delete tiles
+                        //}
                     }
                 }
             }
@@ -120,11 +139,11 @@ public class WorldController : MonoBehaviour
                 current[index] = 0;
             }
         }
-        
+
         cumulativeTime += Time.deltaTime;
         if (++frameCounter > 10)
         {
-            UpdateText(10/cumulativeTime);
+            UpdateText(10 / cumulativeTime);
             frameCounter = 0;
             cumulativeTime = 0;
         }
@@ -141,7 +160,7 @@ public class WorldController : MonoBehaviour
         int y = Mathf.RoundToInt(Mathf.Clamp(localPos.y, 0, tiles_height - 1));
         int index = indexOf(x, y);
         float m = Mathf.Round(current[index] * 1000) / 1000;
-        float p = Mathf.Round(tiles[index].GetPressure()*100)/100;
+        float p = Mathf.Round(tiles[index].GetPressure() * 100) / 100;
 
         InfoText.SetText($"{modeTxt} Mode\nFPS: {Mathf.FloorToInt(fps)}\nP: {p} atm\nM: {m}\n({x}, {y})\nTile: {tileid}");
     }
@@ -164,7 +183,7 @@ public class WorldController : MonoBehaviour
         {
             for (int y = 0; y < tiles_height; y++)
             {
-                tiles[indexOf(x, y)].PostDiffusion(next, x, y);                
+                tiles[indexOf(x, y)].PostDiffusion(next, x, y);
             }
         }
         current = next;
@@ -211,11 +230,11 @@ public class WorldController : MonoBehaviour
     {
         //System.Diagnostics.Stopwatch t_start = System.Diagnostics.Stopwatch.StartNew();
         float a = dt * diff;
-        for (int k=0; k<20; k++)
+        for (int k = 0; k < 20; k++)
         {
-            for (int x=0; x<tiles_width; x++)
+            for (int x = 0; x < tiles_width; x++)
             {
-                for (int y=0; y<tiles_height; y++)
+                for (int y = 0; y < tiles_height; y++)
                 {
                     int i = indexOf(x, y);
                     int neighbors = 4;
