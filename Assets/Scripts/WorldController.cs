@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
@@ -18,6 +19,7 @@ public class WorldController : MonoBehaviour
     float[] current;
     float cumulativeTime = 0;
     int frameCounter = 0;
+    HashSet<int> neighborlist = new HashSet<int>();
     // Start is called before the first frame update
     void Start()
     {
@@ -30,12 +32,13 @@ public class WorldController : MonoBehaviour
             obj.transform.position = pos;
             //obj.SetActive(false);
             tiles[i] = obj.GetComponent<TileController>();
+
+            neighborlist.Add(i); //first run we check everything
         }
     }
 
     private void Update()
     {
-        //System.Diagnostics.Stopwatch t_start = System.Diagnostics.Stopwatch.StartNew();
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
             mode = 0;
@@ -133,6 +136,25 @@ public class WorldController : MonoBehaviour
                     val *= -1;
                 }
                 current[index] += val;
+                neighborlist.Add(index);
+                //also add neighbors
+                if (checkNeighbor(x - 1, y))
+                {
+                    neighborlist.Add(indexOf(x - 1, y));
+                }
+                if (checkNeighbor(x + 1, y))
+                {
+                    neighborlist.Add(indexOf(x + 1, y));
+                }
+                if (checkNeighbor(x, y-1))
+                {
+                    neighborlist.Add(indexOf(x, y-1));
+                }
+                if (checkNeighbor(x, y+1))
+                {
+                    neighborlist.Add(indexOf(x, y+1));
+                }
+
             }
             if (current[index] < 0)
             {
@@ -147,8 +169,6 @@ public class WorldController : MonoBehaviour
             frameCounter = 0;
             cumulativeTime = 0;
         }
-        //long t_calc = t_start.ElapsedMilliseconds;
-        //Debug.Log($"Update: {t_calc} ms");
     }
 
     void UpdateText(float fps)
@@ -187,6 +207,7 @@ public class WorldController : MonoBehaviour
             }
         }
         current = next;
+        neighborlist.Clear();
         for (int x = 0; x < tiles_width; x++)
         {
             for (int y = 0; y < tiles_height; y++)
@@ -205,13 +226,51 @@ public class WorldController : MonoBehaviour
                         tiles[index].gameObject.SetActive(true);
                     }
                 }
-
-                //if (m > 0)
-                //{
-                //    Debug.LogWarning($"({x}, {y}): {m}");
-                //}
+                if (m > 0)
+                {
+                    if (checkNeighbor(x - 1, y) && !checkEdge(x - 1, y))
+                    {
+                        neighborlist.Add(indexOf(x - 1, y));
+                    }
+                    if (checkNeighbor(x + 1, y) && !checkEdge(x + 1, y))
+                    {
+                        neighborlist.Add(indexOf(x + 1, y));
+                    }
+                    if (checkNeighbor(x, y - 1) && !checkEdge(x, y - 1))
+                    {
+                        neighborlist.Add(indexOf(x, y - 1));
+                    }
+                    if (checkNeighbor(x, y + 1) && !checkEdge(x, y + 1))
+                    {
+                        neighborlist.Add(indexOf(x, y + 1));
+                    }
+                }
             }
         }
+        
+    }
+
+    bool checkEdge(int x, int y)
+    {
+        if (x <= 0 || y <= 0 || x >= tiles_width || y >= tiles_height)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    bool checkNeighbor(int x, int y)
+    {
+        if (checkEdge(x, y))
+        {
+            return true;
+        }
+        int j = indexOf(x, y);
+        if (!tiles[j].IsSolid)
+        {
+            return true;
+        }
+        return false;
     }
 
     public static int indexOf(int x, int y)
@@ -219,94 +278,76 @@ public class WorldController : MonoBehaviour
         return x + y * tiles_width;
     }
 
-    Vector2 indexToXY(int index)
+    Vector2Int indexToXY(int index)
     {
         int x = index % tiles_width;
         int y = index / tiles_width;
-        return new Vector2(x, y);
+        return new Vector2Int(x, y);
     }
 
     void diffuse(float[] new_state, float[] initial_state, float diff, float dt)
     {
-        //System.Diagnostics.Stopwatch t_start = System.Diagnostics.Stopwatch.StartNew();
+        System.Diagnostics.Stopwatch t_start = System.Diagnostics.Stopwatch.StartNew();
         float a = dt * diff;
+        
+        Debug.Log($"Count: {neighborlist.Count}");
         for (int k = 0; k < 20; k++)
         {
-            for (int x = 0; x < tiles_width; x++)
+            foreach (int i in neighborlist)
             {
-                for (int y = 0; y < tiles_height; y++)
+                Vector2Int pos = indexToXY(i);
+                int x = pos.x;
+                int y = pos.y;
+                int neighbors = 0;
+                float calc = 0;
+                TileController tile = tiles[i];
+                if (tile.IsSolid)
                 {
-                    int i = indexOf(x, y);
-                    int neighbors = 4;
-                    float calc = 0;
-                    TileController tile = tiles[i];
-                    if (tile.IsSolid)
-                    {
-                        new_state[i] = 0;
-                        continue;
-                    }
-                    if (x - 1 >= 0)
-                    {
-                        if (!tiles[indexOf(x - 1, y)].IsSolid)
-                        {
-                            calc += new_state[indexOf(x - 1, y)];
-                        }
-                        else
-                        {
-                            neighbors--;
-                        }
-                    }
-                    if (x + 1 < tiles_width)
-                    {
-                        if (!tiles[indexOf(x + 1, y)].IsSolid)
-                        {
-                            calc += new_state[indexOf(x + 1, y)];
-                        }
-                        else
-                        {
-                            neighbors--;
-                        }
-                    }
-                    if (y - 1 >= 0)
-                    {
-                        if (!tiles[indexOf(x, y - 1)].IsSolid)
-                        {
-                            calc += new_state[indexOf(x, y - 1)];
-                        }
-                        else
-                        {
-                            neighbors--;
-                        }
-                    }
-                    if (y + 1 < tiles_height)
-                    {
-                        if (!tiles[indexOf(x, y + 1)].IsSolid)
-                        {
-                            calc += new_state[indexOf(x, y + 1)];
-                        }
-                        else
-                        {
-                            neighbors--;
-                        }
-                    }
-                    if (neighbors == 0)
-                    {
-                        new_state[i] = initial_state[i];
-                        continue;
-                    }
-                    calc *= a;
-                    calc = (initial_state[i] + calc) / (1 + neighbors * a);
-                    if (Mathf.Abs(calc) < 0.001)
-                    {
-                        calc = 0;
-                    }
-                    new_state[i] = calc;
-
-                    //new_state[index_of(x, y)] = (initial_state[index_of(x, y)] + a * (new_state[index_of(x - 1, y)] + new_state[index_of(x + 1, y)] + new_state[index_of(x, y - 1)] + new_state[index_of(x, y + 1)])) / (1 + 4 * a);
+                    new_state[i] = 0;
+                    continue;
                 }
+
+                if (checkNeighbor(x - 1, y))
+                {
+                    if (!checkEdge(x-1, y))
+                        calc += new_state[indexOf(x - 1, y)];
+                    neighbors++;
+                }
+                if (checkNeighbor(x + 1, y))
+                {
+                    if (!checkEdge(x+1, y))
+                        calc += new_state[indexOf(x + 1, y)];
+                    neighbors++;
+                }
+                if (checkNeighbor(x, y - 1))
+                {
+                    if (!checkEdge(x, y-1))
+                        calc += new_state[indexOf(x, y - 1)];
+                    neighbors++;
+                }
+                if (checkNeighbor(x, y + 1))
+                {
+                    if (!checkEdge(x, y+1))
+                        calc += new_state[indexOf(x, y + 1)];
+                    neighbors++;
+                }
+
+                if (neighbors == 0)
+                {
+                    new_state[i] = initial_state[i];
+                    continue;
+                }
+
+                calc *= a;
+                calc = (initial_state[i] + calc) / (1 + neighbors * a);
+                if (Mathf.Abs(calc) < 0.001)
+                {
+                    calc = 0;
+                }
+                new_state[i] = calc;
             }
         }
-        //long t_calc = t_start.ElapsedMilliseconds;
-        //Debug.Log($"Calc: {t_calc} ms");
+        long t_calc = t_start.ElapsedMilliseconds;
+        Debug.Log($"Calc: {t_calc} ms");
     }
 }
