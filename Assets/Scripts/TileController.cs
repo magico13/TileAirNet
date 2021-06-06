@@ -42,6 +42,57 @@ public class TileController : MonoBehaviour
 
     }
 
+    public virtual void UpdateMoleCount(float moles)
+    {
+        if (!IsSolid)
+        {
+            MoleCount = moles;
+            if (MoleCount == 0)
+            {
+                gameObject.SetActive(false);
+            }
+            else if (!gameObject.activeSelf)
+            {
+                gameObject.SetActive(true);
+            }
+        }
+        else
+        {
+            MoleCount = 0;
+        }
+    }
+
+    public virtual void OnLeftClick(int x, int y)
+    {
+        SetSolid(true);
+        if (MoleCount > 0)
+        {
+            if (!WorldController.tiles[WorldController.indexOf(x - 1, y)].IsSolid)
+            {
+                WorldController.current[WorldController.indexOf(x - 1, y)] += MoleCount;
+            }
+            else if (!WorldController.tiles[WorldController.indexOf(x + 1, y)].IsSolid)
+            {
+                WorldController.current[WorldController.indexOf(x + 1, y)] += MoleCount;
+            }
+            else if (!WorldController.tiles[WorldController.indexOf(x, y - 1)].IsSolid)
+            {
+                WorldController.current[WorldController.indexOf(x, y - 1)] += MoleCount;
+            }
+            else if (!WorldController.tiles[WorldController.indexOf(x, y + 1)].IsSolid)
+            {
+                WorldController.current[WorldController.indexOf(x, y + 1)] += MoleCount;
+            }
+            WorldController.current[WorldController.indexOf(x, y)] = 0;
+            UpdateMoleCount(0);
+        }
+    }
+
+    public virtual void OnRightClick(int x, int y)
+    {
+        SetSolid(false);
+    }
+
     public virtual void SetSolid(bool solid)
     {
         IsSolid = solid;

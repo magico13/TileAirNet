@@ -9,17 +9,17 @@ public class WorldController : MonoBehaviour
     public static int tiles_width = 105;
     public static int tiles_height = 53;
     public float diff = 250;
-    public GameObject TileSource;
+    public GameObject[] TileSources;
     public TMP_Text InfoText;
 
+    public static float[] current;
+    public static TileController[] tiles;
 
     int mode = 0;
     int tileid = 1;
-    TileController[] tiles;
-    float[] current;
     float cumulativeTime = 0;
     int frameCounter = 0;
-    HashSet<int> neighborlist = new HashSet<int>();
+    readonly HashSet<int> neighborlist = new HashSet<int>();
     // Start is called before the first frame update
     void Start()
     {
@@ -27,7 +27,7 @@ public class WorldController : MonoBehaviour
         tiles = new TileController[tiles_width * tiles_height];
         for (int i = 0; i < tiles_width * tiles_height; i++)
         {
-            var obj = Instantiate(TileSource);
+            var obj = Instantiate(TileSources[0]);
             Vector2 pos = indexToXY(i);
             obj.transform.position = pos;
             //obj.SetActive(false);
@@ -41,23 +41,21 @@ public class WorldController : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
-            mode = 0;
+            tileid = 1;
         }
         else if (Input.GetKeyDown(KeyCode.Alpha2))
         {
-            mode = 1;
+            tileid = 2;
         }
 
-        if (Input.GetKeyDown(KeyCode.Q))
+        if (Input.GetKeyDown(KeyCode.D))
         {
             DisplayMode = (DisplayMode + 1) % 2;
         }
 
-        if (Input.GetKeyDown(KeyCode.W))
+        if (Input.GetKeyDown(KeyCode.M))
         {
-            tileid = (tileid + 1) % 3;
-            if (tileid == 0)
-                tileid = 1;
+            mode = (mode + 1) % 2;
         }
 
         bool leftClick = Input.GetMouseButton(0);
@@ -68,67 +66,29 @@ public class WorldController : MonoBehaviour
             int x = Mathf.RoundToInt(Mathf.Clamp(localPos.x, 0, tiles_width - 1));
             int y = Mathf.RoundToInt(Mathf.Clamp(localPos.y, 0, tiles_height - 1));
             int index = indexOf(x, y);
-            if (mode == 0) //add/remove walls
+            TileController tile = tiles[index];
+            if (mode == 0) //tile mode
             {
-                if (tileid == 1)
-                { //walls
-                    float moles = current[index];
-                    tiles[index].SetSolid(leftClick);
-                    //try to push the air into an adjacent block (ideally equally but for now just one direction is fine)
-                    if (moles > 0 && leftClick)
-                    {
-                        if (!tiles[indexOf(x - 1, y)].IsSolid)
-                        {
-                            current[indexOf(x - 1, y)] += moles;
-                        }
-                        else if (!tiles[indexOf(x + 1, y)].IsSolid)
-                        {
-                            current[indexOf(x + 1, y)] += moles;
-                        }
-                        else if (!tiles[indexOf(x, y - 1)].IsSolid)
-                        {
-                            current[indexOf(x, y - 1)] += moles;
-                        }
-                        else if (!tiles[indexOf(x, y + 1)].IsSolid)
-                        {
-                            current[indexOf(x, y + 1)] += moles;
-                        }
-                        current[index] = 0;
-                    }
+                if (leftClick && tile.Id != tileid)
+                { //different block, remove old one and replace with new one
+                    tiles[index].gameObject.SetActive(false); //disable old one
+
+                    var obj = Instantiate(TileSources[tileid]);//create a new one in its place
+                    obj.transform.position = new Vector2(x, y);
+                    tiles[index] = obj.GetComponent<TileController>();
+                    tile = tiles[index];
                 }
-                else if (tileid == 2)
-                { //pumps
-                    if (Input.GetMouseButtonDown(0))
-                    {
-                        //DestroyImmediate(tiles[index].gameObject, true);
 
-                        PumpController pumpController;
-                        if (!tiles[index].TryGetComponent(out pumpController))
-                        {
-                            GameObject pump = Instantiate(Resources.Load<GameObject>("pump"));
-                            pump.transform.position = new Vector2(x, y);
-
-                            pumpController = pump.GetComponent<PumpController>();
-                        }
-
-                        pumpController.gameObject.SetActive(true);
-                        tiles[index] = pumpController;
-                        tiles[index].SetSolid(true);
-                    }
-                    else if (rightClick)
-                    {
-                        if (tiles[index].TryGetComponent(out PumpController controller))
-                        {
-                            controller.PumpActive = false;
-                        }
-                        //else
-                        //{
-                        //    tiles[index].SetSolid(false); //would delete tiles
-                        //}
-                    }
+                if (leftClick)
+                {
+                    tile.OnLeftClick(x, y);
+                }
+                if (rightClick)
+                {
+                    tile.OnRightClick(x, y);
                 }
             }
-            else if (mode == 1) //add air
+            else if (mode == 1) //air mode
             {
                 float val = 42f;
                 if (rightClick)
@@ -136,24 +96,7 @@ public class WorldController : MonoBehaviour
                     val *= -1;
                 }
                 current[index] += val;
-                neighborlist.Add(index);
-                //also add neighbors
-                if (checkNeighbor(x - 1, y))
-                {
-                    neighborlist.Add(indexOf(x - 1, y));
-                }
-                if (checkNeighbor(x + 1, y))
-                {
-                    neighborlist.Add(indexOf(x + 1, y));
-                }
-                if (checkNeighbor(x, y-1))
-                {
-                    neighborlist.Add(indexOf(x, y-1));
-                }
-                if (checkNeighbor(x, y+1))
-                {
-                    neighborlist.Add(indexOf(x, y+1));
-                }
+                addSelfAndNeighborsToList(x, y);
 
             }
             if (current[index] < 0)
@@ -214,36 +157,10 @@ public class WorldController : MonoBehaviour
             {
                 int index = indexOf(x, y);
                 float m = current[index];
-                if (tiles[index] != null && !tiles[index].IsSolid)
-                {
-                    tiles[index].MoleCount = m;
-                    if (m == 0)
-                    {
-                        tiles[index].gameObject.SetActive(false);
-                    }
-                    else if (!tiles[index].gameObject.activeSelf)
-                    {
-                        tiles[index].gameObject.SetActive(true);
-                    }
-                }
+                tiles[index].UpdateMoleCount(m);
                 if (m > 0)
                 {
-                    if (checkNeighbor(x - 1, y) && !checkEdge(x - 1, y))
-                    {
-                        neighborlist.Add(indexOf(x - 1, y));
-                    }
-                    if (checkNeighbor(x + 1, y) && !checkEdge(x + 1, y))
-                    {
-                        neighborlist.Add(indexOf(x + 1, y));
-                    }
-                    if (checkNeighbor(x, y - 1) && !checkEdge(x, y - 1))
-                    {
-                        neighborlist.Add(indexOf(x, y - 1));
-                    }
-                    if (checkNeighbor(x, y + 1) && !checkEdge(x, y + 1))
-                    {
-                        neighborlist.Add(indexOf(x, y + 1));
-                    }
+                    addSelfAndNeighborsToList(x, y);
                 }
             }
         }
@@ -273,6 +190,27 @@ public class WorldController : MonoBehaviour
         return false;
     }
 
+    void addSelfAndNeighborsToList(int x, int y)
+    {
+        neighborlist.Add(indexOf(x, y));
+        if (checkNeighbor(x - 1, y) && !checkEdge(x - 1, y))
+        {
+            neighborlist.Add(indexOf(x - 1, y));
+        }
+        if (checkNeighbor(x + 1, y) && !checkEdge(x + 1, y))
+        {
+            neighborlist.Add(indexOf(x + 1, y));
+        }
+        if (checkNeighbor(x, y - 1) && !checkEdge(x, y - 1))
+        {
+            neighborlist.Add(indexOf(x, y - 1));
+        }
+        if (checkNeighbor(x, y + 1) && !checkEdge(x, y + 1))
+        {
+            neighborlist.Add(indexOf(x, y + 1));
+        }
+    }
+
     public static int indexOf(int x, int y)
     {
         return x + y * tiles_width;
@@ -290,7 +228,7 @@ public class WorldController : MonoBehaviour
         System.Diagnostics.Stopwatch t_start = System.Diagnostics.Stopwatch.StartNew();
         float a = dt * diff;
         
-        Debug.Log($"Count: {neighborlist.Count}");
+        //Debug.Log($"Count: {neighborlist.Count}");
         for (int k = 0; k < 20; k++)
         {
             foreach (int i in neighborlist)

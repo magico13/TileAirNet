@@ -15,11 +15,27 @@ public class PumpController : TileController
     {
         if (PumpActive)
         {
-            // move particles from one side to the other
-            float toMove = Pump(next[WorldController.indexOf(x, y - 1)]);
-            next[WorldController.indexOf(x, y - 1)] -= toMove;
-            next[WorldController.indexOf(x, y + 1)] += toMove;
+            // move particles from below to above
+            
+            int below = WorldController.indexOf(x, y - 1);
+            int above = WorldController.indexOf(x, y + 1);
+            if (!WorldController.tiles[below].IsSolid && !WorldController.tiles[above].IsSolid)
+            {
+                float toMove = Pump(next[below]);
+                next[below] -= toMove;
+                next[above] += toMove;
+            }
         }
+    }
+
+    public override void OnLeftClick(int x, int y)
+    {
+        base.OnLeftClick(x, y);
+    }
+
+    public override void OnRightClick(int x, int y)
+    {
+        PumpActive = false;
     }
 
 
